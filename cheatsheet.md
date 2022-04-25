@@ -102,7 +102,7 @@ public class ProjectId implements Serializable {
 @ServerEndpoint("/...")
 @ApplicationScoped
 public class Socket {
-    Set<Session> sessions = new ConcurrentHashSet<>();
+    HashMap<Long, List<Session>> sessions = new HashMap<>();
 }
 ```
 Events:
@@ -112,31 +112,42 @@ Events:
 - onClose
 ```java
 @OnOpen
-public void onOpen(Session session) {
-    sessions.add(session);
-    send(...);
+public void onOpen(Session session, @PathParam("id") long productId) {
+    if (sessions.get(productId) == null) {
+        List<Session> dummy = new LinkedList<Session>();
+        dummy.add(session);
+        sessions.put(productId, dummy);
+    } else {
+        sessions.get(productId).add(session);
+    }
 }
 
 @OnClose
-public void onClose(Session session) {
-    sessions.remove(session);
+    public void onClose(Session session, @PathParam("id") long productId) {
+        // session entfernen
+    sessions.get(productId).remove(session);
 }
 
 @OnError
-public void onError(Session session, Throwable throwable) {
-    sessions.remove(session);
+public void onError(Session session, Throwable throwable, @PathParam("id") long productId) {
+    // session entfernen
+    sessions.get(productId).remove(session);
 }
 
 
 @OnMessage
-public void onMessage(String message, @PathParam("username") String username) {
+public void onMessage(String message, @PathParam("id") long productId) {
     send()
 }
 
-public void send(Session session, Survey survey) {
-    session.getAsyncRemote().sendObject(surv, sendResult -> {
+public void send(long productId, int amount) {
+    sessions.get(productId).forEach(session -> {
+        session.getAsyncRemote().sendObject(amount, sendResult -> {
+            if (sendResult.getException() != null) {
+                System.out.println("Unable to send message: " + sendResult.getException());
+            }
+        });
     });
-
 }
 ```
 
